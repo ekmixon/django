@@ -11,9 +11,7 @@ from django.utils.module_loading import import_string
 
 class RedisSerializer(PickleSerializer):
     def dumps(self, obj):
-        if isinstance(obj, int):
-            return obj
-        return super().dumps(obj)
+        return obj if isinstance(obj, int) else super().dumps(obj)
 
     def loads(self, data):
         try:
@@ -81,12 +79,11 @@ class RedisCacheClient:
         client = self.get_client(key, write=True)
         value = self._serializer.dumps(value)
 
-        if timeout == 0:
-            if ret := bool(client.set(key, value, nx=True)):
-                client.delete(key)
-            return ret
-        else:
+        if timeout != 0:
             return bool(client.set(key, value, ex=timeout, nx=True))
+        if ret := bool(client.set(key, value, nx=True)):
+            client.delete(key)
+        return ret
 
     def get(self, key, default):
         client = self.get_client(key)
@@ -153,11 +150,7 @@ class RedisCacheClient:
 class RedisCache(BaseCache):
     def __init__(self, server, params):
         super().__init__(params)
-        if isinstance(server, str):
-            self._servers = re.split('[;,]', server)
-        else:
-            self._servers = server
-
+        self._servers = re.split('[;,]', server) if isinstance(server, str) else server
         self._class = RedisCacheClient
         self._options = params.get('OPTIONS', {})
 
